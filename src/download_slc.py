@@ -210,10 +210,15 @@ def main():
     parser.add_argument("--end_date")
     parser.add_argument("--bbox", nargs=4, type=float)
     parser.add_argument("--relative_orbit", type=int)
+    parser.add_argument("--max_threads", type=int)
 
     args = parser.parse_args()
 
     config = load_config(args.config)
+
+    # ensure defaults exist
+    config.setdefault("download", {})
+    config["download"].setdefault("max_threads", 4)
 
     # override config if provided
     if args.start_date:
@@ -227,6 +232,11 @@ def main():
 
     if args.relative_orbit:
         config["relative_orbit"] = args.relative_orbit
+
+    if args.max_threads:
+        config.setdefault("download", {})
+        config["download"]["max_threads"] = args.max_threads
+
 
     access_key = os.getenv("cdse_S3_KEY")
     secret_key = os.getenv("cdse_S3_SECRET")
@@ -243,6 +253,8 @@ def main():
     print("\n=== Effective Parameters ===")
     for key in ["orbit_state", "relative_orbit", "start_date", "end_date", "bbox"]:
         print(f"{key:16}: {config.get(key)}")
+
+    print(f"{'max_threads':16}: {config['download'].get('max_threads')}")
     print("============================\n")
 
     print(f"Download path: {base_path}\n")

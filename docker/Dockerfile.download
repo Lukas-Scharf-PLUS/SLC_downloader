@@ -1,0 +1,15 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Copy code + configs
+COPY src/ ./src/
+COPY configs/ ./configs/
+COPY requirements.txt .
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Default config (override via env in Argo)
+ENV CONFIG_PATH=configs/vienna_2020.yaml
+
+CMD ["python", "src/download_slc.py"]

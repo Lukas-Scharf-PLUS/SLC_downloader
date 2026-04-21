@@ -1,0 +1,18 @@
+id: vienna_2020
+
+orbit_state: ascending
+relative_orbit: 73
+instrument_mode: IW
+
+start_date: "2023-06-01"
+end_date: "2023-07-01"
+
+bbox:
+  - 16.1840505
+  - 48.119439
+  - 16.578036
+  - 48.32185013
+
+download:
+  base_path: "/data/SLC"   # inside container (mount or use env)
+  max_threads: 8

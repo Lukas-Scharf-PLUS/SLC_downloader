@@ -26,7 +26,7 @@ def safe_exists(base_path, product_name):
 def build_run_folder(config):
     orbit = config["orbit_state"][:3].upper()
     rel_orbit = str(config["relative_orbit"]).zfill(3)
-    return f"S1_{config['id']}_{rel_orbit}_{orbit}"
+    return f"S1_{rel_orbit}_{orbit}"
 
 
 # -----------------------------
@@ -132,7 +132,9 @@ def download_single_file(s3_key, bucket_name, local_file_path, access_key, secre
     s3_client.download_file(bucket_name, s3_key, local_file_path)
 
 
-def download_product_from_s3_parallel(bucket_name, prefix, target_dir, access_key, secret_key, max_threads=4):
+def download_product_from_s3_parallel(
+    bucket_name, prefix, target_dir, access_key, secret_key, max_threads=4
+):
     s3_resource = boto3.resource(
         's3',
         endpoint_url='https://eodata.dataspace.copernicus.eu',
@@ -151,7 +153,7 @@ def download_product_from_s3_parallel(bucket_name, prefix, target_dir, access_ke
     total_bytes = sum(obj.size for obj in objects)
     total_mb = total_bytes / (1024 * 1024)
 
-    print(f"Downloading {len(objects)} files ({total_mb:.2f} MB) → {target_dir}")
+    print(f"\nDownloading {len(objects)} files ({total_mb:.2f} MB) → {target_dir}")
 
     start_time = time.time()
 
@@ -175,13 +177,21 @@ def download_product_from_s3_parallel(bucket_name, prefix, target_dir, access_ke
         concurrent.futures.wait(futures)
 
     duration = time.time() - start_time
-    
+
+    # ---- stats ----
+    duration = max(duration, 1e-6)  # avoid division by zero
+    speed_mb_s = total_mb / duration
+    speed_mbps = speed_mb_s * 8  # megabits per second
+
     print(f"\nDownload complete! Files saved in: {os.path.abspath(target_dir)}")
     print("\n--- Parallel Download Statistics ---")
-    print(f"Total Data Downloaded: {total_mb:.2f} MB")
-    print(f"Total Time Taken:      {duration_sec:.2f} seconds")
-    print(f"Average Speed:         {speed_mbps:.2f} MB/s")
-    print(f"Done in {duration:.2f}s ({total_mb/duration:.2f} MB/s)")
+    print(f"Total files:           {len(objects)}")
+    print(f"Total data:            {total_mb:.2f} MB")
+    print(f"Total time:            {duration:.2f} seconds")
+    print(f"Avg speed:             {speed_mb_s:.2f} MB/s")
+    print(f"Avg speed:             {speed_mbps:.2f} Mbit/s")
+    print(f"Threads used:          {max_threads}")
+    print("-----------------------------------\n")
 
 
 # -----------------------------
@@ -189,13 +199,34 @@ def download_product_from_s3_parallel(bucket_name, prefix, target_dir, access_ke
 # -----------------------------
 def main():
     parser = argparse.ArgumentParser()
+
     parser.add_argument(
         "--config",
         default=os.getenv("CONFIG_PATH", "configs/vienna_2020.yaml")
     )
+
+    # overrides for Argo / CLI
+    parser.add_argument("--start_date")
+    parser.add_argument("--end_date")
+    parser.add_argument("--bbox", nargs=4, type=float)
+    parser.add_argument("--relative_orbit", type=int)
+
     args = parser.parse_args()
 
     config = load_config(args.config)
+
+    # override config if provided
+    if args.start_date:
+        config["start_date"] = args.start_date
+
+    if args.end_date:
+        config["end_date"] = args.end_date
+
+    if args.bbox:
+        config["bbox"] = args.bbox
+
+    if args.relative_orbit:
+        config["relative_orbit"] = args.relative_orbit
 
     access_key = os.getenv("cdse_S3_KEY")
     secret_key = os.getenv("cdse_S3_SECRET")
@@ -209,7 +240,11 @@ def main():
     base_path = os.path.join(base_root, run_folder)
     os.makedirs(base_path, exist_ok=True)
 
-    print(f"\nRunning: {config['id']}")
+    print("\n=== Effective Parameters ===")
+    for key in ["orbit_state", "relative_orbit", "start_date", "end_date", "bbox"]:
+        print(f"{key:16}: {config.get(key)}")
+    print("============================\n")
+
     print(f"Download path: {base_path}\n")
 
     scenes = search_scenes(config)

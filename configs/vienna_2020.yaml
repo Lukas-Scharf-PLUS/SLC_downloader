@@ -14,5 +14,5 @@ bbox:
   - 48.32185013
 
 download:
-  base_path: "$HOME/bucket/WP5_Infrastructure_and_Underground_Safety/InSAR-Daten"   # actual path # when running in container you might have to change that
-  max_threads: 8
+  base_path: "/output_data"  # path in the container  
+  max_threads: 6

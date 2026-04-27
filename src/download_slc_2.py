@@ -160,10 +160,14 @@ def download_product(bucket, prefix, target_dir, access_key, secret_key, max_thr
 # -----------------------------
 # UPLOAD
 # -----------------------------
-def upload_directory(local_dir, bucket, prefix, access_key, secret_key):
+def upload_directory(local_dir, prefix):
+    bucket = os.getenv("WORKSPACE_BUCKET")
+    access_key = os.getenv("cdse_S3_KEY")
+    secret_key = os.getenv("cdse_S3_SECRET")
+
     s3 = boto3.client(
         "s3",
-        endpoint_url="https://eodata.dataspace.copernicus.eu",
+        endpoint_url="https://workspace.aducat.hub-otc-sc.eox.at",
         aws_access_key_id=access_key,
         aws_secret_access_key=secret_key,
         region_name="default",
@@ -175,8 +179,8 @@ def upload_directory(local_dir, bucket, prefix, access_key, secret_key):
             rel = os.path.relpath(local_path, local_dir)
 
             key = f"{prefix}/{os.path.basename(local_dir)}/{rel}"
-            s3.upload_file(local_path, bucket, key)
 
+            s3.upload_file(local_path, bucket, key)
 
 # -----------------------------
 # MAIN
@@ -226,7 +230,7 @@ def main():
             config["download"].get("max_threads", 4),
         )
 
-        upload_directory(local_dir, TARGET_BUCKET, TARGET_PREFIX, access_key, secret_key)
+        upload_directory(local_dir, TARGET_BUCKET, TARGET_PREFIX)
 
         # cleanup to save disk
         shutil.rmtree(local_dir, ignore_errors=True)

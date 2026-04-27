@@ -14,5 +14,5 @@ bbox:
   - 48.32185013
 
 download:
-  base_path: "/data/SLC"   # inside container (mount or use env)
+  base_path: "/data"   # inside container (mount or use env)
   max_threads: 8

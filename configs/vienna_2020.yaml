@@ -14,5 +14,5 @@ bbox:
   - 48.32185013
 
 download:
-  base_path: "/output_data"  # path in the container  
+  base_path: "/data"  # path in the container  
   max_threads: 6

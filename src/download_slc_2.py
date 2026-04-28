@@ -230,7 +230,13 @@ def main():
             config["download"].get("max_threads", 4),
         )
 
-        upload_directory(local_dir, TARGET_BUCKET, TARGET_PREFIX)
+        print(f"Uploading {product} to {TARGET_BUCKET}/{TARGET_PREFIX}")
+        
+        try:
+            upload_directory(local_dir, TARGET_PREFIX)
+        except Exception as e:
+            print(f"[ERROR] Upload failed for {product}: {e}")
+            raise
 
         # cleanup to save disk
         shutil.rmtree(local_dir, ignore_errors=True)

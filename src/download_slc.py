@@ -6,10 +6,10 @@ import boto3
 import time
 import concurrent.futures
 from utils import load_config
-from dotenv import load_dotenv
+#from dotenv import load_dotenv
 
 
-load_dotenv("cdse.env")
+#load_dotenv("cdse.env")
 
 # -----------------------------
 # SAFE EXISTENCE CHECK
@@ -200,70 +200,127 @@ def download_product_from_s3_parallel(
 def main():
     parser = argparse.ArgumentParser()
 
+    # config file
     parser.add_argument(
         "--config",
         default=os.getenv("CONFIG_PATH", "configs/vienna_2020.yaml")
     )
 
-    # overrides for Argo / CLI
+    # acquisition parameters
+    parser.add_argument("--orbit_state")
+    parser.add_argument("--relative_orbit", type=int)
+    parser.add_argument("--instrument_mode")
+
+    # temporal parameters
     parser.add_argument("--start_date")
     parser.add_argument("--end_date")
-    parser.add_argument("--bbox", nargs=4, type=float)
-    parser.add_argument("--relative_orbit", type=int)
+
+    # spatial parameters
+    parser.add_argument("--bbox")
+
+    # download parameters
     parser.add_argument("--max_threads", type=int)
+    parser.add_argument("--base_path")
 
     args = parser.parse_args()
 
+    # -------------------------
+    # load config defaults
+    # -------------------------
     config = load_config(args.config)
 
-    # ensure defaults exist
+    # ensure structure exists
     config.setdefault("download", {})
     config["download"].setdefault("max_threads", 4)
 
-    # override config if provided
+    # -------------------------
+    # CLI overrides
+    # -------------------------
+
+    # acquisition
+    if args.orbit_state:
+        config["orbit_state"] = args.orbit_state
+
+    if args.relative_orbit is not None:
+        config["relative_orbit"] = args.relative_orbit
+
+    if args.instrument_mode:
+        config["instrument_mode"] = args.instrument_mode
+
+    # temporal
     if args.start_date:
         config["start_date"] = args.start_date
 
     if args.end_date:
         config["end_date"] = args.end_date
 
+    # spatial
     if args.bbox:
-        config["bbox"] = args.bbox
+        bbox = [float(x) for x in args.bbox.split()]
 
-    if args.relative_orbit:
-        config["relative_orbit"] = args.relative_orbit
+        if len(bbox) != 4:
+            raise ValueError(
+                "--bbox must contain exactly 4 values: WEST SOUTH EAST NORTH"
+            )
 
-    if args.max_threads:
-        config.setdefault("download", {})
+        config["bbox"] = bbox
+    
+
+    # download
+    if args.max_threads is not None:
         config["download"]["max_threads"] = args.max_threads
 
+    if args.base_path:
+        config["download"]["base_path"] = args.base_path
 
+    # -------------------------
+    # credentials
+    # -------------------------
     access_key = os.getenv("cdse_S3_KEY")
     secret_key = os.getenv("cdse_S3_SECRET")
 
     if not access_key or not secret_key:
-        raise ValueError("Missing ACCESS_KEY or SECRET_KEY")
+        raise ValueError("Missing cdse_S3_KEY or cdse_S3_SECRET")
 
+    # -------------------------
+    # effective configuration
+    # -------------------------
+    print("\n=== Effective Parameters ===")
+    print(f"orbit_state     : {config['orbit_state']}")
+    print(f"relative_orbit  : {config['relative_orbit']}")
+    print(f"instrument_mode : {config['instrument_mode']}")
+    print(f"start_date      : {config['start_date']}")
+    print(f"end_date        : {config['end_date']}")
+    print(f"bbox            : {config['bbox']}")
+    print(f"base_path       : {config['download']['base_path']}")
+    print(f"max_threads     : {config['download']['max_threads']}")
+    print("============================\n")
+
+    # -------------------------
+    # output path
+    # -------------------------
     base_root = os.path.expandvars(config["download"]["base_path"])
+
     run_folder = build_run_folder(config)
 
     base_path = os.path.join(base_root, run_folder)
+
     os.makedirs(base_path, exist_ok=True)
-
-    print("\n=== Effective Parameters ===")
-    for key in ["orbit_state", "relative_orbit", "start_date", "end_date", "bbox"]:
-        print(f"{key:16}: {config.get(key)}")
-
-    print(f"{'max_threads':16}: {config['download'].get('max_threads')}")
-    print("============================\n")
 
     print(f"Download path: {base_path}\n")
 
+    # -------------------------
+    # search scenes
+    # -------------------------
     scenes = search_scenes(config)
 
     print(f"Found {len(scenes)} scenes\n")
 
+    # -------------------------
+    # download
+    # -------------------------
     for i, s in enumerate(scenes, 1):
+
         product_name = s["product_name"]
 
         if safe_exists(base_path, product_name):
@@ -285,7 +342,7 @@ def main():
             target_dir,
             access_key,
             secret_key,
-            max_threads=config["download"].get("max_threads", 4)
+            max_threads=config["download"]["max_threads"]
         )
 
     print("\nAll done.\n")

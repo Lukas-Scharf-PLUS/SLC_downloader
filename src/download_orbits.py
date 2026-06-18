@@ -7,6 +7,7 @@ from pathlib import Path
 
 import s1_orbits
 import yaml
+import subprocess
 
 
 def load_config(config_path):
@@ -189,6 +190,9 @@ def main():
     print(f"Skipped            : {skipped}")
     print(f"Failed             : {failed}")
     print("================================\n")
+
+    print("\n=== PVC CONTENT AFTER ORBIT DOWNLOAD ===")
+    subprocess.run(["find", "/data", "-maxdepth", "4"])
 
 
 if __name__ == "__main__":

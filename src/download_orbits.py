@@ -15,39 +15,44 @@ def load_config(config_path):
         return yaml.safe_load(f)
 
 
-def orbit_exists(acq_date, orbit_dir):
-    """
-    Check if an orbit file already exists that covers the acquisition date.
-    """
+def orbit_exists(scene_name, orbit_dir):
+
+    scene_sat = scene_name[:3]  # S1A or S1B
+
+    acq_time = datetime.strptime(
+        scene_name.split("_")[5],
+        "%Y%m%dT%H%M%S"
+    )
 
     for orbit in orbit_dir.glob("*.EOF"):
 
+        # must be same satellite
+        if not orbit.name.startswith(scene_sat):
+            continue
+
         m = re.search(
-            r"V(\d{8})T\d{6}_(\d{8})T\d{6}",
+            r"V(\d{8}T\d{6})_(\d{8}T\d{6})",
             orbit.name
         )
 
         if not m:
             continue
 
-        start = datetime.strptime(m.group(1), "%Y%m%d")
-        end = datetime.strptime(m.group(2), "%Y%m%d")
+        orbit_start = datetime.strptime(
+            m.group(1),
+            "%Y%m%dT%H%M%S"
+        )
 
-        if start <= acq_date <= end:
+        orbit_end = datetime.strptime(
+            m.group(2),
+            "%Y%m%dT%H%M%S"
+        )
+
+        if orbit_start <= acq_time <= orbit_end:
             return orbit
 
     return None
 
-
-def get_acquisition_date(scene_name):
-    """
-    Extract acquisition date from Sentinel-1 SAFE name.
-    """
-
-    return datetime.strptime(
-        scene_name.split("_")[5][:8],
-        "%Y%m%d"
-    )
 
 
 def main():
@@ -131,14 +136,10 @@ def main():
 
         try:
 
-            acq_date = get_acquisition_date(
-                scene.stem
-            )
-
             existing = orbit_exists(
-                acq_date,
+                scene.stem,
                 orbit_dir
-            )
+            ) 
 
             if existing:
 
@@ -191,8 +192,8 @@ def main():
     print(f"Failed             : {failed}")
     print("================================\n")
 
-    print("\n=== PVC CONTENT AFTER ORBIT DOWNLOAD ===")
-    subprocess.run(["find", "/data", "-maxdepth", "4"])
+    #print("\n=== PVC CONTENT AFTER ORBIT DOWNLOAD ===")
+    #subprocess.run(["find", "/data", "-maxdepth", "4"])
 
 
 if __name__ == "__main__":

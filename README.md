@@ -74,6 +74,27 @@ There are two versions.
     ghcr.io/lukas-scharf-plus/slc-downloader:0.1.1 \
     python src/download_slc.py --config configs/vienna_2020.yaml
 
+
+    !!! currently tested (02.07.2026) !!!
+    ✅ Example local container run with parsing the input
+
+    docker run --rm \
+    -v "$PWD:/data" \
+    -e cdse_S3_KEY=... \
+    -e cdse_S3_SECRET=... \
+    ghcr.io/lukas-scharf-plus/slc-downloader:0.1.3 \
+    python src/download_slc.py \
+        --orbit_state ascending \
+        --relative_orbit 146 \
+        --instrument_mode IW \
+        --start_date 2021-01-01 \
+        --end_date 2021-02-01 \
+        --bbox "16.18 48.11 16.58 48.33" \
+        --max_threads 12 \
+        --max_retries 3 \
+        --base_path /data/slc
+
+
     📂 Output Folder Structure
 
     After running:

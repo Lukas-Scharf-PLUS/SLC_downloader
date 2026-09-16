@@ -1,3 +1,6 @@
+This project is a work in progress. Functionality and correctness are not guaranteed, and any use is at your own risk.
+
+
 # SLC_downloader
 This repo allows you to download any SLC Sentinel-1 files from CDSE
 

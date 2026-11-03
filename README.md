@@ -241,6 +241,8 @@ backoff, both for the catalogue and for S3.
 
 ```
 SLC_downloader/
+├── argo/
+│   └── download_slc_and_orbits.yaml  Argo workflow: SLC step, then orbit step, both uploaded to S3
 ├── configs/
 │   └── vienna.yaml        example config (search, download and orbit settings)
 ├── src/

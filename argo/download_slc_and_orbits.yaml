@@ -1,0 +1,188 @@
+# Argo workflow: download Sentinel-1 SLC products from CDSE, then the matching
+# orbit files, and upload both folders to the artifact S3 bucket.
+#
+# Both steps share one volume (ephemeral-workdir, mounted at /data), so the
+# orbit step sees the SAFE folders downloaded by the SLC step. Output artifacts
+# on a volume are uploaded straight from that volume by Argo's wait container.
+#
+# Submit with:  argo submit argo/download_slc_and_orbits.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: download-slc-orbits-
+spec:
+  entrypoint: main
+  serviceAccountName: aducat
+  arguments:
+    parameters:
+      - name: orbit_state
+        value: ascending
+      - name: relative_orbit
+        value: "146"
+      - name: instrument_mode
+        value: IW
+      - name: start_date
+        value: "2021-01-01"
+      - name: end_date
+        value: "2021-01-31"            # inclusive; this month gives 3 scenes
+      - name: slc_bbox
+        value: 16.18 48.11 16.58 48.33
+      - name: slc_max_threads
+        value: "4"                     # CDSE allows 4 connections per user
+      - name: slc_max_retries
+        value: "3"
+      - name: s3_output_prefix
+        value: WP5_Infrastructure_and_Underground_Safety/slc_test_data
+
+  templates:
+    - name: main
+      dag:
+        tasks:
+          - name: download-slc
+            template: download-slc
+          - name: download-orbits
+            template: download-orbits
+            dependencies:
+              - download-slc
+
+    - name: download-slc
+      outputs:
+        artifacts:
+          - name: slc
+            path: /data/slc
+            s3:
+              key: "{{workflow.parameters.s3_output_prefix}}/slc"
+            archive:
+              none: {}                 # upload the folders as they are, no .tgz
+      container:
+        image: ghcr.io/lukas-scharf-plus/slc-downloader:0.2.1
+        # `command` replaces the image ENTRYPOINT; _entrypoint.sh activates
+        # the micromamba environment, so it has to stay in front of python.
+        command:
+          - /usr/local/bin/_entrypoint.sh
+          - python
+        args:
+          - src/download_slc.py
+          - --orbit_state
+          - "{{workflow.parameters.orbit_state}}"
+          - --relative_orbit
+          - "{{workflow.parameters.relative_orbit}}"
+          - --instrument_mode
+          - "{{workflow.parameters.instrument_mode}}"
+          - --start_date
+          - "{{workflow.parameters.start_date}}"
+          - --end_date
+          - "{{workflow.parameters.end_date}}"
+          - --bbox
+          - "{{workflow.parameters.slc_bbox}}"
+          - --max_threads
+          - "{{workflow.parameters.slc_max_threads}}"
+          - --threads_per_file
+          - "1"
+          - --max_retries
+          - "{{workflow.parameters.slc_max_retries}}"
+          - --base_path
+          - /data/slc
+        env:
+          - name: cdse_S3_KEY
+            valueFrom:
+              secretKeyRef:
+                name: cdse
+                key: S3_KEY
+          - name: cdse_S3_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: cdse
+                key: S3_SECRET
+        resources:
+          requests:
+            cpu: "2"
+            memory: 4Gi
+          limits:
+            cpu: "4"
+            memory: 8Gi
+        volumeMounts:
+          - name: ephemeral-workdir
+            mountPath: /data
+        imagePullPolicy: Always
+
+    - name: download-orbits
+      outputs:
+        artifacts:
+          - name: orbits
+            path: /data/Orbit_files
+            s3:
+              key: "{{workflow.parameters.s3_output_prefix}}/Orbit_files"
+            archive:
+              none: {}
+      container:
+        image: ghcr.io/lukas-scharf-plus/slc-downloader:0.2.1
+        command:
+          - /usr/local/bin/_entrypoint.sh
+          - python
+        args:
+          - src/download_orbits.py
+          - --safe_dir
+          - /data/slc
+          - --orbit_dir
+          - /data/Orbit_files
+        env:
+          - name: cdse_S3_KEY
+            valueFrom:
+              secretKeyRef:
+                name: cdse
+                key: S3_KEY
+          - name: cdse_S3_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: cdse
+                key: S3_SECRET
+        resources:
+          requests:
+            cpu: "1"
+            memory: 1Gi
+          limits:
+            cpu: "2"
+            memory: 2Gi
+        volumeMounts:
+          - name: ephemeral-workdir
+            mountPath: /data
+        imagePullPolicy: Always
+
+  # The image runs as the non-root user "mambauser" (UID/GID 57439);
+  # fsGroup makes the volume writable for that user.
+  securityContext:
+    runAsUser: 57439
+    runAsGroup: 57439
+    fsGroup: 57439
+    runAsNonRoot: true
+
+  volumeClaimTemplates:
+    - metadata:
+        name: ephemeral-workdir
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 50Gi              # ~8 GB per IW SLC; raise for longer periods
+        storageClassName: csi-disk
+
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: node_group
+                operator: In
+                values:
+                  - usera
+  tolerations:
+    - key: hub.jupyter.org_dedicated
+      operator: Equal
+      value: usera
+      effect: NoSchedule
+  ttlStrategy:
+    secondsAfterCompletion: 3600
+  podGC:
+    strategy: OnWorkflowSuccess

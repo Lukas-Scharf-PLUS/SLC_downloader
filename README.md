@@ -51,13 +51,13 @@ conda activate slc-downloader
 Use the published image (tags are listed under the repository's *Packages* on GitHub):
 
 ```bash
-docker pull ghcr.io/lukas-scharf-plus/slc-downloader:0.2.0
+docker pull ghcr.io/lukas-scharf-plus/slc-downloader:0.2.1
 ```
 
 Or build it yourself from this repository:
 
 ```bash
-docker build -t ghcr.io/lukas-scharf-plus/slc-downloader:0.2.0 .
+docker build -t ghcr.io/lukas-scharf-plus/slc-downloader:0.2.1 .
 ```
 
 Publishing a new version (bump the tag, needs a GitHub token with `write:packages`):
@@ -175,7 +175,7 @@ docker run --rm \
     --user "$(id -u):$(id -g)" \
     -v ~/projects/ADUCAT/data:/data \
     -e cdse_S3_KEY -e cdse_S3_SECRET \
-    ghcr.io/lukas-scharf-plus/slc-downloader:0.2.0 \
+    ghcr.io/lukas-scharf-plus/slc-downloader:0.2.1 \
     python src/download_slc.py \
         --orbit_state ascending --relative_orbit 146 --instrument_mode IW \
         --start_date 2021-01-01 --end_date 2021-01-31 \
@@ -186,13 +186,38 @@ docker run --rm \
     --user "$(id -u):$(id -g)" \
     -v ~/projects/ADUCAT/data:/data \
     -e cdse_S3_KEY -e cdse_S3_SECRET \
-    ghcr.io/lukas-scharf-plus/slc-downloader:0.2.0 \
+    ghcr.io/lukas-scharf-plus/slc-downloader:0.2.1 \
     python src/download_orbits.py --safe_dir /data/slc --orbit_dir /data/orbits
 ```
 
 Instead of `-e cdse_S3_KEY -e cdse_S3_SECRET` you can use `--env-file .env`.
 To use your own config, mount it, e.g. `-v $PWD/my.yaml:/app/configs/my.yaml`, then
 pass `--config configs/my.yaml`.
+
+### Running on Argo Workflows
+
+[argo/download_slc_and_orbits.yaml](argo/download_slc_and_orbits.yaml) runs both tools as a DAG:
+`download-slc` first, then `download-orbits`. Both steps share one volume mounted at `/data`,
+so the orbit step finds the SAFE folders of the first step. Each step uploads its folder
+(`/data/slc` and `/data/Orbit_files`) as an output artifact to `<s3_output_prefix>/slc` and
+`<s3_output_prefix>/Orbit_files` in the artifact bucket.
+
+```bash
+argo submit argo/download_slc_and_orbits.yaml \
+    -p start_date=2021-01-01 -p end_date=2021-01-31
+```
+
+Things the workflow relies on:
+
+- a Kubernetes secret `cdse` with the keys `S3_KEY` and `S3_SECRET` (both steps need it);
+- `command` starts with `/usr/local/bin/_entrypoint.sh`, because in Kubernetes `command`
+  replaces the image's entrypoint, and that script activates the Python environment;
+- `securityContext` with `fsGroup: 57439`, because the image runs as the non-root user
+  `mambauser` and the volume must be writable for it;
+- a volume big enough for the period (about 8 GB per IW SLC; the default is 50Gi).
+
+Cluster-specific settings (`serviceAccountName`, node affinity, tolerations, storage class)
+are those of the ADUCAT cluster; adjust them for another cluster.
 
 ### Exit codes
 

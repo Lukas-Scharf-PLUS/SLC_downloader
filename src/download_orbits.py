@@ -35,7 +35,9 @@ from orbits import (PRECISE, RESTITUTED, best_local_orbit, download_orbit,
 
 logger = logging.getLogger("download_orbits")
 
-S3_CONNECTIONS = 2  # orbit files are small and downloaded one after another
+# Orbit files are small and downloaded one after another, so one connection
+# is enough and leaves the rest of the CDSE limit (4) to a parallel SLC download.
+S3_CONNECTIONS = 1
 
 STATUS_SKIPPED = "skipped"
 STATUS_DOWNLOADED = "downloaded"

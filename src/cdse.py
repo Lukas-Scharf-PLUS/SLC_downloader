@@ -35,6 +35,16 @@ HTTP_BACKOFF_SECONDS = 2
 
 S3_MAX_RETRIES = 10
 
+# CDSE quota for "Copernicus General Users" (documentation.dataspace.copernicus.eu/Quotas.html):
+# at most 4 concurrent S3 connections, 20 MB/s per connection, 2000 requests
+# per minute. More connections are rejected with HTTP 429 "Too Many Requests".
+# The connection limit is enforced in config.py (max_connections).
+
+# botocore's "standard"/"adaptive" retry modes only recognise throttling by
+# AWS error names (e.g. "SlowDown"). CDSE answers with a bare HTTP 429, which
+# only the "legacy" mode retries (with exponential backoff).
+S3_RETRY_MODE = "legacy"
+
 REPO_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -110,8 +120,8 @@ def create_s3_client(access_key, secret_key, max_connections):
     access_key, secret_key : str
         CDSE S3 credentials.
     max_connections : int
-        Size of the connection pool. It should be at least the total number
-        of parallel transfers, otherwise threads wait for free connections.
+        Size of the connection pool. Set it to the number of parallel
+        transfers, so no idle extra connections count against the CDSE limit.
 
     Returns
     -------
@@ -119,7 +129,7 @@ def create_s3_client(access_key, secret_key, max_connections):
         Configured S3 client.
     """
     boto_config = BotoConfig(
-        retries={"max_attempts": S3_MAX_RETRIES, "mode": "adaptive"},
+        retries={"max_attempts": S3_MAX_RETRIES, "mode": S3_RETRY_MODE},
         max_pool_connections=max_connections,
         connect_timeout=HTTP_TIMEOUT[0],
         read_timeout=HTTP_TIMEOUT[1],

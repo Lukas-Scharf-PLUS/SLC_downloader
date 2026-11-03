@@ -12,7 +12,8 @@ How a product is checked and downloaded:
    that was just downloaded is checked against its MD5 from the manifest;
    a file with a wrong checksum is deleted so that the next attempt
    downloads it again.
-5. Steps 2-4 are repeated up to `max_retries` times.
+5. Steps 2-4 are repeated up to `max_retries` times, with a growing pause
+   between rounds.
 
 Already complete files from earlier runs are only checked by size, so
 re-running over a large archive stays fast.
@@ -27,11 +28,21 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from boto3.s3.transfer import TransferConfig
+from botocore.exceptions import BotoCoreError, ClientError
 
 logger = logging.getLogger(__name__)
 
 MANIFEST_NAME = "manifest.safe"
 CHECKSUM_READ_CHUNK = 8 * 1024 * 1024  # bytes read at a time when hashing
+
+# Large files are fetched in pieces; every piece is one S3 request. CDSE
+# allows 2000 requests per minute, so bigger pieces keep us far below that
+# (an 8 GB product = ~125 requests instead of ~1000 with boto3's 8 MB default).
+DOWNLOAD_CHUNK_SIZE = 64 * 1024 * 1024
+
+# Pause before download round 2, 3, ... (multiplied by the round number - 1),
+# so that a temporary throttling by CDSE has time to clear.
+RETRY_ROUND_WAIT_SECONDS = 60
 BYTES_PER_GB = 1024**3
 
 STATUS_SKIPPED = "skipped"
@@ -246,7 +257,10 @@ def download_files_parallel(s3_client, bucket, remote_files, target_dir, checksu
     tuple of (int, list of str)
         Bytes downloaded successfully, and one error message per failed file.
     """
-    transfer_config = TransferConfig(max_concurrency=threads_per_file)
+    transfer_config = TransferConfig(
+        max_concurrency=threads_per_file,
+        multipart_chunksize=DOWNLOAD_CHUNK_SIZE,
+    )
     downloaded_bytes = 0
     errors = []
 
@@ -297,7 +311,14 @@ def download_product(s3_client, scene, target_dir, max_threads, threads_per_file
     ProductResult
         Never raises for download problems; they are reported in the result.
     """
-    remote_files = list_product_files(s3_client, scene.bucket, scene.prefix)
+    try:
+        remote_files = list_product_files(s3_client, scene.bucket, scene.prefix)
+    except (BotoCoreError, ClientError) as error:
+        # e.g. still throttled after all S3 retries: report it, let the
+        # caller continue with the next product instead of crashing.
+        return ProductResult(scene.product_name, STATUS_FAILED,
+                             message=f"Could not list files on S3: {error}")
+
     if not remote_files:
         return ProductResult(scene.product_name, STATUS_FAILED,
                              message=f"No files found at s3://{scene.bucket}/{scene.prefix}")
@@ -313,7 +334,11 @@ def download_product(s3_client, scene, target_dir, max_threads, threads_per_file
 
     for attempt in range(1, max_retries + 1):
         if attempt > 1:
-            logger.info("  Retry %d/%d", attempt, max_retries)
+            # Retrying right away would hit the same problem (e.g. throttling),
+            # so wait longer before each new round.
+            wait_seconds = RETRY_ROUND_WAIT_SECONDS * (attempt - 1)
+            logger.info("  Retry %d/%d in %d s", attempt, max_retries, wait_seconds)
+            time.sleep(wait_seconds)
 
         attempt_bytes, errors = _download_round(
             s3_client, scene.bucket, remote_files, target_dir, max_threads, threads_per_file

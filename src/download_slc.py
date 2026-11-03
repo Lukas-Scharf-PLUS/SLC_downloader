@@ -32,10 +32,6 @@ from stac_search import search_scenes
 
 logger = logging.getLogger("download_slc")
 
-# Extra S3 connections on top of the transfer threads, e.g. for listing files.
-EXTRA_S3_CONNECTIONS = 4
-
-
 def parse_arguments(argv=None):
     """
     Define and parse the command-line options.
@@ -71,7 +67,10 @@ def parse_arguments(argv=None):
     download.add_argument("--base_path", help="root folder for the downloaded data")
     download.add_argument("--max_threads", type=int, help="files downloaded in parallel (default 4)")
     download.add_argument("--threads_per_file", type=int,
-                          help="parallel connections per large file (default 4)")
+                          help="parallel connections per large file (default 1)")
+    download.add_argument("--max_connections", type=int,
+                          help="upper limit for max_threads x threads_per_file "
+                               "(default 4 = CDSE limit for general users)")
     download.add_argument("--max_retries", type=int, help="download attempts per product (default 3)")
     download.add_argument("--dry_run", action="store_true",
                           help="only search and list the products, do not download")
@@ -101,6 +100,7 @@ def log_settings(settings, output_dir):
     logger.info("output folder    : %s", output_dir)
     logger.info("max_threads      : %s", settings.max_threads)
     logger.info("threads_per_file : %s", settings.threads_per_file)
+    logger.info("max_connections  : %s", settings.max_connections)
     logger.info("max_retries      : %s", settings.max_retries)
     logger.info("============================")
 
@@ -162,7 +162,7 @@ def run(args):
     access_key, secret_key = load_credentials()
     s3_client = create_s3_client(
         access_key, secret_key,
-        max_connections=settings.max_threads * settings.threads_per_file + EXTRA_S3_CONNECTIONS,
+        max_connections=settings.max_threads * settings.threads_per_file,
     )
     output_dir.mkdir(parents=True, exist_ok=True)
 

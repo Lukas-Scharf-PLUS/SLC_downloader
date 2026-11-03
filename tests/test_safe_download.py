@@ -4,6 +4,9 @@ import hashlib
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
+
+from botocore.exceptions import ClientError
 
 from safe_download import (STATUS_DOWNLOADED, STATUS_FAILED, STATUS_SKIPPED,
                            download_product, read_manifest_checksums)
@@ -77,6 +80,10 @@ class DownloadProductTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.target = Path(self.tmp.name) / "S1A_TEST.SAFE"
+        # Do not really wait between retry rounds in tests.
+        sleep_patcher = mock.patch("safe_download.time.sleep")
+        self.sleep = sleep_patcher.start()
+        self.addCleanup(sleep_patcher.stop)
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -127,6 +134,21 @@ class DownloadProductTests(unittest.TestCase):
 
         self.assertEqual(result.status, STATUS_FAILED)
         self.assertFalse((self.target / "measurement/a.tiff").exists())
+
+    def test_waits_before_retry_round(self):
+        s3 = FakeS3(remote_files(), corrupt_once=["measurement/a.tiff"])
+        self.download(s3)
+        self.sleep.assert_called_once_with(60)
+
+    def test_listing_error_fails_product_instead_of_raising(self):
+        s3 = FakeS3(remote_files())
+        throttled = ClientError({"Error": {"Code": "429", "Message": "Too Many Requests"}}, "ListObjectsV2")
+        s3.get_paginator = mock.Mock(side_effect=throttled)
+
+        result = self.download(s3)
+
+        self.assertEqual(result.status, STATUS_FAILED)
+        self.assertIn("429", result.message)
 
     def test_missing_product_on_s3_fails(self):
         s3 = FakeS3({})

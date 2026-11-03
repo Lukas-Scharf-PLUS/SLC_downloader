@@ -83,6 +83,19 @@ class SlcSettingsTests(unittest.TestCase):
             with self.subTest(override=override), self.assertRaises(ConfigError):
                 build_slc_settings({**VALID_VALUES, **override})
 
+    def test_default_uses_cdse_connection_limit(self):
+        settings = build_slc_settings(VALID_VALUES)
+        self.assertEqual(settings.max_threads * settings.threads_per_file, 4)
+
+    def test_too_many_connections_raise(self):
+        with self.assertRaises(ConfigError) as context:
+            build_slc_settings({**VALID_VALUES, "max_threads": 8, "threads_per_file": 4})
+        self.assertIn("32 connections", str(context.exception))
+
+    def test_connection_limit_can_be_raised(self):
+        settings = build_slc_settings({**VALID_VALUES, "max_threads": 8, "max_connections": 8})
+        self.assertEqual(settings.max_threads, 8)
+
     def test_environment_variables_in_paths_are_expanded(self):
         settings = build_slc_settings({**VALID_VALUES, "base_path": "$HOME/data"})
         self.assertEqual(settings.base_path, Path.home() / "data")

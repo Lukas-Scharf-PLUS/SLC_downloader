@@ -22,7 +22,8 @@ bbox:                       # WEST, SOUTH, EAST, NORTH in degrees
 download:
   base_path: "/data/slc"    # path inside the Docker container
   max_threads: 4            # files downloaded in parallel
-  threads_per_file: 4       # parallel connections per large file
+  threads_per_file: 1       # parallel connections per large file
+  max_connections: 4        # CDSE limit for general users; max_threads x threads_per_file must not exceed it
   max_retries: 3            # download attempts per product
 
 # --- orbits (download_orbits.py) ---

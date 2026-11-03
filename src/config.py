@@ -20,13 +20,16 @@ POLARIZATIONS = ("VV", "VH", "HH", "HV")
 MAX_RELATIVE_ORBIT = 175  # Sentinel-1 has 175 relative orbits per 12-day cycle
 
 DEFAULT_POLARIZATION = "VV"
+# CDSE allows 4 concurrent S3 connections for general users. Downloading 4
+# files with one connection each uses the full quota (4 x 20 MB/s).
+DEFAULT_MAX_CONNECTIONS = 4
 DEFAULT_MAX_THREADS = 4
-DEFAULT_THREADS_PER_FILE = 4
+DEFAULT_THREADS_PER_FILE = 1
 DEFAULT_MAX_RETRIES = 3
 
 # Keys that belong to the "download" / "orbits" sections of the config file.
 # Everything else is a top-level search parameter.
-DOWNLOAD_KEYS = ("base_path", "max_threads", "threads_per_file", "max_retries")
+DOWNLOAD_KEYS = ("base_path", "max_threads", "threads_per_file", "max_connections", "max_retries")
 ORBIT_KEYS = ("safe_dir", "orbit_dir")
 
 
@@ -48,6 +51,7 @@ class SlcSettings:
     base_path: Path
     max_threads: int
     threads_per_file: int
+    max_connections: int  # upper limit for max_threads * threads_per_file
     max_retries: int
 
 
@@ -191,6 +195,23 @@ def build_slc_settings(values):
     if start_date > end_date:
         raise ConfigError("start_date must not be after end_date")
 
+    max_threads = _parse_positive_int(values.get("max_threads", DEFAULT_MAX_THREADS), "max_threads")
+    threads_per_file = _parse_positive_int(
+        values.get("threads_per_file", DEFAULT_THREADS_PER_FILE), "threads_per_file"
+    )
+    max_connections = _parse_positive_int(
+        values.get("max_connections", DEFAULT_MAX_CONNECTIONS), "max_connections"
+    )
+    # Going over the CDSE connection limit does not make downloads faster;
+    # CDSE rejects the extra connections with HTTP 429 and the run fails.
+    if max_threads * threads_per_file > max_connections:
+        raise ConfigError(
+            f"max_threads ({max_threads}) x threads_per_file ({threads_per_file}) = "
+            f"{max_threads * threads_per_file} connections, but max_connections is "
+            f"{max_connections} (the CDSE limit for general users is 4). "
+            "Lower max_threads or threads_per_file."
+        )
+
     return SlcSettings(
         orbit_state=orbit_state,
         relative_orbit=relative_orbit,
@@ -200,10 +221,9 @@ def build_slc_settings(values):
         end_date=end_date,
         bbox=parse_bbox(values["bbox"]),
         base_path=_parse_path(values["base_path"]),
-        max_threads=_parse_positive_int(values.get("max_threads", DEFAULT_MAX_THREADS), "max_threads"),
-        threads_per_file=_parse_positive_int(
-            values.get("threads_per_file", DEFAULT_THREADS_PER_FILE), "threads_per_file"
-        ),
+        max_threads=max_threads,
+        threads_per_file=threads_per_file,
+        max_connections=max_connections,
         max_retries=_parse_positive_int(values.get("max_retries", DEFAULT_MAX_RETRIES), "max_retries"),
     )
 

@@ -117,12 +117,18 @@ python src/download_slc.py --config configs/vienna.yaml --dry_run
 | `--bbox` | `bbox` | required | `"WEST SOUTH EAST NORTH"` in degrees |
 | `--base_path` | `download.base_path` | required | root output folder |
 | `--max_threads` | `download.max_threads` | 4 | files downloaded in parallel |
-| `--threads_per_file` | `download.threads_per_file` | 4 | parallel connections per large file |
+| `--threads_per_file` | `download.threads_per_file` | 1 | parallel connections per large file |
+| `--max_connections` | `download.max_connections` | 4 | upper limit for `max_threads × threads_per_file` |
 | `--max_retries` | `download.max_retries` | 3 | download attempts per product |
 | `--dry_run` | – | off | search only, no download |
 
-The total number of connections to CDSE is about `max_threads × threads_per_file`.
-If you see many retries or throttling, lower these values.
+**CDSE connection limit:** general CDSE users may open at most **4 concurrent S3 connections**
+(20 MB/s each, 2000 requests/minute, see the [CDSE quotas](https://documentation.dataspace.copernicus.eu/Quotas.html)).
+Extra connections are rejected with `429 Too Many Requests`. The script therefore refuses to start if
+`max_threads × threads_per_file` is larger than `max_connections` (default 4). The default of
+4 files × 1 connection uses the full quota. The limit applies per account, so do not run two downloads
+(e.g. two Argo workflows) with the same credentials at the same time. Only raise `max_connections` if
+your account really has a higher quota.
 
 Output layout:
 

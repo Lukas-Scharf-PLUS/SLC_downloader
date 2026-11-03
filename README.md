@@ -48,8 +48,25 @@ conda activate slc-downloader
 
 ### 2b. Docker
 
+Use the published image (tags are listed under the repository's *Packages* on GitHub):
+
 ```bash
-docker build -t slc-downloader .
+docker pull ghcr.io/lukas-scharf-plus/slc-downloader:0.2.0
+```
+
+Or build it yourself from this repository:
+
+```bash
+docker build -t ghcr.io/lukas-scharf-plus/slc-downloader:0.2.0 .
+```
+
+Publishing a new version (bump the tag, needs a GitHub token with `write:packages`):
+
+```bash
+echo "$GITHUB_TOKEN" | docker login ghcr.io -u Lukas-Scharf-PLUS --password-stdin
+docker build -t ghcr.io/lukas-scharf-plus/slc-downloader:<version> -t ghcr.io/lukas-scharf-plus/slc-downloader:latest .
+docker push ghcr.io/lukas-scharf-plus/slc-downloader:<version>
+docker push ghcr.io/lukas-scharf-plus/slc-downloader:latest
 ```
 
 ---
@@ -152,7 +169,7 @@ docker run --rm \
     --user "$(id -u):$(id -g)" \
     -v ~/projects/ADUCAT/data:/data \
     -e cdse_S3_KEY -e cdse_S3_SECRET \
-    slc-downloader \
+    ghcr.io/lukas-scharf-plus/slc-downloader:0.2.0 \
     python src/download_slc.py \
         --orbit_state ascending --relative_orbit 146 --instrument_mode IW \
         --start_date 2021-01-01 --end_date 2021-01-31 \
@@ -163,7 +180,7 @@ docker run --rm \
     --user "$(id -u):$(id -g)" \
     -v ~/projects/ADUCAT/data:/data \
     -e cdse_S3_KEY -e cdse_S3_SECRET \
-    slc-downloader \
+    ghcr.io/lukas-scharf-plus/slc-downloader:0.2.0 \
     python src/download_orbits.py --safe_dir /data/slc --orbit_dir /data/orbits
 ```
 

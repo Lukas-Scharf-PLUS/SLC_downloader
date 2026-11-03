@@ -1,0 +1,12 @@
+# Conda environment for this repository; also used to build the Docker image.
+#   create: conda env create -f environment.yml
+#   update: conda env update -n slc-downloader -f environment.yml --prune
+name: slc-downloader
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - boto3>=1.35,<2
+  - requests>=2.32,<3
+  - pyyaml>=6,<7
+  - python-dotenv>=1,<2

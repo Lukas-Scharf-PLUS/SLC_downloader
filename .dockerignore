@@ -1,0 +1,7 @@
+# Keep secrets and local clutter out of the Docker build context.
+.env
+.git
+.claude
+**/__pycache__
+**/.ipynb_checkpoints
+tests

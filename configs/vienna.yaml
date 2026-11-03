@@ -1,0 +1,31 @@
+# Example config: Vienna, ascending track 73, June 2020.
+# Every value can be overridden on the command line (--<name>).
+# Paths may use ~ and environment variables such as $HOME.
+
+# --- search (download_slc.py) ---
+orbit_state: ascending      # ascending | descending
+relative_orbit: 73          # 1-175
+instrument_mode: IW         # IW | EW | SM | WV
+polarization: VV            # products must contain this polarization
+
+start_date: "2020-06-01"
+end_date: "2020-06-30"      # inclusive
+
+bbox:                       # WEST, SOUTH, EAST, NORTH in degrees
+  - 16.1840505
+  - 48.119439
+  - 16.578036
+  - 48.32185013
+
+# --- download (download_slc.py) ---
+# Products are stored in <base_path>/S1_<relative_orbit>_<ASC|DES>/
+download:
+  base_path: "/data/slc"    # path inside the Docker container
+  max_threads: 4            # files downloaded in parallel
+  threads_per_file: 4       # parallel connections per large file
+  max_retries: 3            # download attempts per product
+
+# --- orbits (download_orbits.py) ---
+orbits:
+  safe_dir: "/data/slc"     # searched recursively for .SAFE folders
+  orbit_dir: "/data/orbits"

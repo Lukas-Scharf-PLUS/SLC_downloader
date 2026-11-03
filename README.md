@@ -1,208 +1,246 @@
-This project is a work in progress. Functionality and correctness are not guaranteed, and any use is at your own risk.
-
-
 # SLC_downloader
-This repo allows you to download any SLC Sentinel-1 files from CDSE
 
-There are two versions.
+Downloads Sentinel-1 **SLC products** (complete `.SAFE` folders) and the matching
+**orbit files** (`.EOF`) from the [Copernicus Data Space Ecosystem (CDSE)](https://dataspace.copernicus.eu).
+Works for all Sentinel-1 satellites: **S1A, S1B, S1C and S1D**.
 
-1. Work on local system with normal folder and file structure:
+> Work in progress. Functionality and correctness are not guaranteed; use at your own risk.
 
-    - use download_slc.py
+Two command-line tools:
 
-    This script:
+| Script | What it does |
+| --- | --- |
+| `src/download_slc.py` | Searches SLC products by track, date range and area and downloads them, with resume, retries and checksum verification. |
+| `src/download_orbits.py` | Finds the `.SAFE` folders you already have and downloads an orbit file for each one: precise (POEORB) if available, otherwise restituted (RESORB). |
 
-    Searches Sentinel-1 SLC scenes via STAC
-    Resolves their location in Copernicus Data Space (S3)
-    Downloads all files of each .SAFE product
-    Stores them locally in a structured folder
-    Skips already downloaded products
+Every parameter can be set in a **YAML config**, on the **command line**, or both.
+Command-line values override config values.
 
-    👉 Uses parallel downloads
-    👉 Keeps full .SAFE structure
-    👉 Works with mounted Docker volume
+---
 
+## Setup
 
+### 1. CDSE S3 credentials
 
-    go to your project directory where data folder is located:
+Both tools read from the CDSE S3 storage and need S3 keys
+(create them at <https://eodata-s3keysmanager.dataspace.copernicus.eu>):
 
-    e.g.: 
+| Variable | Meaning |
+| --- | --- |
+| `cdse_S3_KEY` | CDSE S3 access key |
+| `cdse_S3_SECRET` | CDSE S3 secret key |
 
-    cd ~/projects/ADUCAT/data
+Either export them in your shell or put them in a `.env` file in the repository root
+(the file is git-ignored and never copied into the Docker image):
 
-    🔐 Required Environment Variables
+```
+cdse_S3_KEY=...
+cdse_S3_SECRET=...
+```
 
-    You only need Copernicus Data Space credentials:
+### 2a. Local: conda environment
 
-    cdse_S3_KEY
-    cdse_S3_SECRET
+```bash
+conda env create -f environment.yml        # first time
+conda env update -n slc-downloader -f environment.yml --prune   # after changes
+conda activate slc-downloader
+```
 
-    These are used to access:
+### 2b. Docker
 
-    https://eodata.dataspace.copernicus.eu
+```bash
+docker build -t slc-downloader .
+```
 
-    ⚙️ Configuration
-    Example config (configs/vienna_2020.yaml):
+---
 
-    orbit_state: ascending
-    relative_orbit: 73
-    instrument_mode: IW
+## Usage
 
-    start_date: "2020-06-01"
-    end_date: "2020-07-01"
+### Download SLC products
 
-    bbox:
-    - 16.1840505
-    - 48.119439
-    - 16.578036
-    - 48.32185013
+With a config file (see [configs/vienna.yaml](configs/vienna.yaml)):
 
-    download:
-    base_path: "/data"
-    max_threads: 6
+```bash
+python src/download_slc.py --config configs/vienna.yaml
+```
 
-    ▶️ Run Locally (Docker)
-    ✅ Step 1 — prepare local folder
-    mkdir -p data
+Without a config file, everything on the command line:
 
-    ✅ Step 2 — export credentials
-    export cdse_S3_KEY=...
-    export cdse_S3_SECRET=...
+```bash
+python src/download_slc.py \
+    --orbit_state ascending \
+    --relative_orbit 146 \
+    --instrument_mode IW \
+    --start_date 2021-01-01 \
+    --end_date 2021-01-31 \
+    --bbox "16.18 48.11 16.58 48.33" \
+    --base_path ~/projects/ADUCAT/data/slc
+```
 
-    ✅ Step 3 — run container
-    docker run --rm \
-    -v $(pwd)/data:/data \
-    -e cdse_S3_KEY \
-    -e cdse_S3_SECRET \
-    ghcr.io/lukas-scharf-plus/slc-downloader:0.1.1 \
-    python src/download_slc.py --config configs/vienna_2020.yaml
+Config plus overrides (e.g. a different date range):
 
+```bash
+python src/download_slc.py --config configs/vienna.yaml --start_date 2023-01-01 --end_date 2023-12-31
+```
 
-    !!! currently tested (02.07.2026) !!!
-    ✅ Example local container run with parsing the input
+Only list what would be downloaded:
 
-    docker run --rm \
-    -v "$PWD:/data" \
-    -e cdse_S3_KEY=... \
-    -e cdse_S3_SECRET=... \
-    ghcr.io/lukas-scharf-plus/slc-downloader:0.1.3 \
+```bash
+python src/download_slc.py --config configs/vienna.yaml --dry_run
+```
+
+| Option | Config key | Default | Meaning |
+| --- | --- | --- | --- |
+| `--orbit_state` | `orbit_state` | required | `ascending` or `descending` |
+| `--relative_orbit` | `relative_orbit` | required | track number, 1–175 |
+| `--instrument_mode` | `instrument_mode` | required | `IW`, `EW`, `SM` or `WV` |
+| `--polarization` | `polarization` | `VV` | products must contain this polarization |
+| `--start_date` | `start_date` | required | first day, `YYYY-MM-DD` |
+| `--end_date` | `end_date` | required | last day, **inclusive** |
+| `--bbox` | `bbox` | required | `"WEST SOUTH EAST NORTH"` in degrees |
+| `--base_path` | `download.base_path` | required | root output folder |
+| `--max_threads` | `download.max_threads` | 4 | files downloaded in parallel |
+| `--threads_per_file` | `download.threads_per_file` | 4 | parallel connections per large file |
+| `--max_retries` | `download.max_retries` | 3 | download attempts per product |
+| `--dry_run` | – | off | search only, no download |
+
+The total number of connections to CDSE is about `max_threads × threads_per_file`.
+If you see many retries or throttling, lower these values.
+
+Output layout:
+
+```
+<base_path>/
+└── S1_146_ASC/
+    ├── S1A_IW_SLC__1SDV_20210111T165103_...SAFE/
+    │   ├── manifest.safe
+    │   ├── annotation/
+    │   ├── measurement/
+    │   └── ...
+    └── S1B_IW_SLC__1SDV_20210117T165023_...SAFE/
+```
+
+### Download orbit files
+
+```bash
+python src/download_orbits.py \
+    --safe_dir ~/projects/ADUCAT/data/slc \
+    --orbit_dir ~/projects/ADUCAT/data/orbits
+```
+
+or with the `orbits:` section of a config file:
+
+```bash
+python src/download_orbits.py --config configs/vienna.yaml
+```
+
+| Option | Config key | Meaning |
+| --- | --- | --- |
+| `--safe_dir` | `orbits.safe_dir` | folder searched (recursively) for `.SAFE` folders |
+| `--orbit_dir` | `orbits.orbit_dir` | folder where the `.EOF` files are stored |
+
+Run it again later: scenes that only have a RESORB file get the precise orbit as soon as
+CDSE publishes it (about 20 days after acquisition), and the replaced RESORB file is deleted.
+
+### Running in Docker
+
+Mount your data folder at `/data`, pass the credentials, and run the container with your own
+user ID so the downloaded files belong to you and not to the container user:
+
+```bash
+docker run --rm \
+    --user "$(id -u):$(id -g)" \
+    -v ~/projects/ADUCAT/data:/data \
+    -e cdse_S3_KEY -e cdse_S3_SECRET \
+    slc-downloader \
     python src/download_slc.py \
-        --orbit_state ascending \
-        --relative_orbit 146 \
-        --instrument_mode IW \
-        --start_date 2021-01-01 \
-        --end_date 2021-02-01 \
+        --orbit_state ascending --relative_orbit 146 --instrument_mode IW \
+        --start_date 2021-01-01 --end_date 2021-01-31 \
         --bbox "16.18 48.11 16.58 48.33" \
-        --max_threads 12 \
-        --max_retries 3 \
         --base_path /data/slc
 
+docker run --rm \
+    --user "$(id -u):$(id -g)" \
+    -v ~/projects/ADUCAT/data:/data \
+    -e cdse_S3_KEY -e cdse_S3_SECRET \
+    slc-downloader \
+    python src/download_orbits.py --safe_dir /data/slc --orbit_dir /data/orbits
+```
 
-    📂 Output Folder Structure
+Instead of `-e cdse_S3_KEY -e cdse_S3_SECRET` you can use `--env-file .env`.
+To use your own config, mount it, e.g. `-v $PWD/my.yaml:/app/configs/my.yaml`, then
+pass `--config configs/my.yaml`.
 
-    After running:
+### Exit codes
 
-    data/
-    └── S1_073_ASC/
-        ├── S1A_IW_SLC__1SDV_20200628T...SAFE/
-        │   ├── manifest.safe
-        │   ├── annotation/
-        │   ├── measurement/
-        │   └── ...
-        ├── S1B_IW_SLC__1SDV_20200622T...SAFE/
-        └── ...
+Both scripts exit with `0` when everything is complete, `1` when at least one
+product or orbit failed (the summary at the end lists which ones), and `2` for invalid
+parameters or missing credentials. This makes failures visible in scripts and
+batch jobs.
 
+---
 
+## How it works
 
+**SLC download (`download_slc.py`)**
 
-2. Work in cloud, copy needed S3 SLC files from one S3 bucket to your target S3 bucket
+1. **Search**: one query to the CDSE STAC catalogue (`stac.dataspace.copernicus.eu`)
+   with track, orbit direction, mode, area and dates. All result pages are followed.
+   Each STAC item already contains the S3 location of its files.
+2. **Check**: for each product, all files of the SAFE folder are listed on S3. Local files
+   with the correct size count as done. A product where everything is done is skipped.
+3. **Download**: `manifest.safe` is downloaded first; it contains an MD5 checksum for
+   most files. Then all missing files are downloaded in parallel from
+   `eodata.dataspace.copernicus.eu`. boto3 writes each file under a temporary name and only
+   renames it when it is finished, so an interrupted run never leaves a half-written file
+   under its real name.
+4. **Verify**: each newly downloaded file is checked for size and, if listed in the
+   manifest, MD5. Bad files are deleted and downloaded again (up to `max_retries` rounds).
+   Files from earlier runs are only checked by size, so re-runs over a large archive stay fast.
+5. **Continue**: a product that still fails is reported and the script moves on to the
+   next one.
 
-    - use download_slc_stream.py
+Temporary network problems (timeouts, HTTP 429/5xx) are retried automatically with
+backoff, both for the catalogue and for S3.
 
-    This script:
+**Orbit download (`download_orbits.py`)**
 
-    Searches Sentinel-1 SLC scenes via STAC
-    Resolves their source location in Copernicus Data Space (S3)
-    Copies each product directly from CDSE S3 → your workspace S3
-    Skips already existing products
+1. Read satellite (S1A–S1D) and start/stop time from each `.SAFE` folder name.
+2. Check `orbit_dir` for an orbit file of the same satellite that covers the
+   acquisition plus 60 s on each side.
+3. If there is no precise orbit locally, ask the CDSE OData catalogue
+   (`catalogue.dataspace.copernicus.eu`) for the newest POEORB that covers the scene,
+   then for a RESORB if no POEORB exists, and download it from CDSE S3.
 
-    👉 No local storage required
-    👉 No intermediate files
-    👉 Fully streaming S3 → S3
+---
 
+## Project structure
 
+```
+SLC_downloader/
+├── configs/
+│   └── vienna.yaml        example config (search, download and orbit settings)
+├── src/
+│   ├── download_slc.py    CLI: search and download SLC products
+│   ├── download_orbits.py CLI: download orbit files for local SAFE folders
+│   ├── cdse.py            CDSE endpoints, credentials, HTTP session with retries, S3 client
+│   ├── config.py          read YAML, merge with command-line values, validate
+│   ├── stac_search.py     STAC search with pagination, S3 location of each product
+│   ├── safe_download.py   download a SAFE folder, verify size and MD5, retry
+│   └── orbits.py          parse scene/orbit names, find and download orbit files
+├── tests/                 unit tests (offline, CDSE is replaced by fakes)
+├── Dockerfile             image built from environment.yml
+├── environment.yml        conda environment "slc-downloader"
+└── README.md
+```
 
-    🔐 Required Environment Variables
+---
 
-    You must provide two sets of credentials:
+## Tests
 
-    1. Copernicus Data Space (source)
+The tests use only the Python standard library (`unittest`) and do not touch the network:
 
-    cdse_S3_KEY
-    cdse_S3_SECRET
-
-    Used to read from:
-
-    https://eodata.dataspace.copernicus.eu
-
-    2. Workspace S3 (destination)
-
-    WORKSPACE_URL           # e.g. https://obs.eu-de.otc.t-systems.com
-    WORKSPACE_REGION        # usually eu-de
-    WORKSPACE_ACCESS_KEY
-    WORKSPACE_SECRET_KEY
-    WORKSPACE_BUCKET        # e.g. aducat
-
-
-    ⚙️ Configuration
-
-    The script expects a YAML config like:
-
-    orbit_state: ascending
-    relative_orbit: 73
-    instrument_mode: IW
-
-    start_date: "2020-06-01"
-    end_date: "2020-07-01"
-
-    bbox:
-    - 16.1840505
-    - 48.119439
-    - 16.578036
-    - 48.32185013
-
-
-    ▶️ Run Locally (Docker)
-    ✅ Option 1 — using exported environment variables
-    export cdse_S3_KEY=...
-    export cdse_S3_SECRET=...
-
-    export WORKSPACE_URL=https://obs.eu-de.otc.t-systems.com
-    export WORKSPACE_REGION=eu-de
-    export WORKSPACE_ACCESS_KEY=...
-    export WORKSPACE_SECRET_KEY=...
-    export WORKSPACE_BUCKET=aducat
-
-
-    Then run:
-
-    docker run --rm \
-    -e cdse_S3_KEY \
-    -e cdse_S3_SECRET \
-    -e WORKSPACE_URL \
-    -e WORKSPACE_REGION \
-    -e WORKSPACE_ACCESS_KEY \
-    -e WORKSPACE_SECRET_KEY \
-    -e WORKSPACE_BUCKET \
-    ghcr.io/lukas-scharf-plus/slc-downloader:0.1.1 \
-    python src/download_slc_stream.py --config configs/vienna_2020.yaml
-
-
-    📦 Output Structure (in your S3 bucket)
-    s3://<WORKSPACE_BUCKET>/
-    └── WP5_Infrastructure_and_Underground_Safety/
-        └── data/
-            └── S1_073_ASC/
-                ├── S1A_...SAFE/
-                ├── S1B_...SAFE/
-                └── ...
+```bash
+conda activate slc-downloader
+python -m unittest discover -s tests -t .
+```

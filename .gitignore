@@ -1,1 +1,13 @@
+# Secrets
 .env
+
+# Python
+__pycache__/
+*.pyc
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Downloaded data (if someone downloads into the repo by accident)
+*.SAFE/
+*.EOF

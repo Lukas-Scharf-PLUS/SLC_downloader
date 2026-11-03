@@ -51,13 +51,13 @@ conda activate slc-downloader
 Use the published image (tags are listed under the repository's *Packages* on GitHub):
 
 ```bash
-docker pull ghcr.io/lukas-scharf-plus/slc-downloader:0.2.1
+docker pull ghcr.io/lukas-scharf-plus/slc_downloader:latest
 ```
 
 Or build it yourself from this repository:
 
 ```bash
-docker build -t ghcr.io/lukas-scharf-plus/slc-downloader:0.2.1 .
+docker build -t ghcr.io/lukas-scharf-plus/slc_downloader:latest .
 ```
 
 Publishing is automatic: GitHub Actions (`.github/workflows/docker.yml`) builds
@@ -66,8 +66,12 @@ tags `latest` and `sha-<commit>`. To publish a version number, push a git tag:
 
 ```bash
 git tag v0.3.0
-git push origin v0.3.0      # publishes slc-downloader:0.3.0 and :0.3
+git push origin v0.3.0      # publishes slc_downloader:0.3.0 and :0.3
 ```
+
+The image name `slc_downloader` comes from the repository name. Versions up to
+0.2.1 were pushed by hand as `ghcr.io/lukas-scharf-plus/slc-downloader` (hyphen);
+they stay available there, but new images only go to `slc_downloader`.
 
 ---
 
@@ -175,7 +179,7 @@ docker run --rm \
     --user "$(id -u):$(id -g)" \
     -v ~/projects/ADUCAT/data:/data \
     -e cdse_S3_KEY -e cdse_S3_SECRET \
-    ghcr.io/lukas-scharf-plus/slc-downloader:0.2.1 \
+    ghcr.io/lukas-scharf-plus/slc_downloader:latest \
     python src/download_slc.py \
         --orbit_state ascending --relative_orbit 146 --instrument_mode IW \
         --start_date 2021-01-01 --end_date 2021-01-31 \
@@ -186,7 +190,7 @@ docker run --rm \
     --user "$(id -u):$(id -g)" \
     -v ~/projects/ADUCAT/data:/data \
     -e cdse_S3_KEY -e cdse_S3_SECRET \
-    ghcr.io/lukas-scharf-plus/slc-downloader:0.2.1 \
+    ghcr.io/lukas-scharf-plus/slc_downloader:latest \
     python src/download_orbits.py --safe_dir /data/slc --orbit_dir /data/orbits
 ```
 

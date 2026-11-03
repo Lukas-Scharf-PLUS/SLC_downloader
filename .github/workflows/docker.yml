@@ -15,9 +15,9 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  # Not the repository name (SLC_downloader): keep the name of the image that
-  # was published by hand before this workflow existed.
-  IMAGE_NAME: lukas-scharf-plus/slc-downloader
+  # Published as ghcr.io/lukas-scharf-plus/slc_downloader. The older, hand-pushed
+  # package "slc-downloader" (up to 0.2.1) refuses pushes from this workflow.
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build-test-push:

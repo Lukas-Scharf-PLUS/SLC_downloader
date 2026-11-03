@@ -14,6 +14,8 @@ RUN micromamba install --yes --name base --file /tmp/environment.yml \
 WORKDIR /app
 COPY --chown=$MAMBA_USER:$MAMBA_USER src/ ./src/
 COPY --chown=$MAMBA_USER:$MAMBA_USER configs/ ./configs/
+# The tests are small and offline; GitHub Actions runs them inside the image.
+COPY --chown=$MAMBA_USER:$MAMBA_USER tests/ ./tests/
 
 # Print log lines immediately instead of buffering them.
 ENV PYTHONUNBUFFERED=1

@@ -60,13 +60,13 @@ Or build it yourself from this repository:
 docker build -t ghcr.io/lukas-scharf-plus/slc-downloader:0.2.1 .
 ```
 
-Publishing a new version (bump the tag, needs a GitHub token with `write:packages`):
+Publishing is automatic: GitHub Actions (`.github/workflows/docker.yml`) builds
+the image on every push to `main`, runs the tests in it, and publishes it with the
+tags `latest` and `sha-<commit>`. To publish a version number, push a git tag:
 
 ```bash
-echo "$GITHUB_TOKEN" | docker login ghcr.io -u Lukas-Scharf-PLUS --password-stdin
-docker build -t ghcr.io/lukas-scharf-plus/slc-downloader:<version> -t ghcr.io/lukas-scharf-plus/slc-downloader:latest .
-docker push ghcr.io/lukas-scharf-plus/slc-downloader:<version>
-docker push ghcr.io/lukas-scharf-plus/slc-downloader:latest
+git tag v0.3.0
+git push origin v0.3.0      # publishes slc-downloader:0.3.0 and :0.3
 ```
 
 ---
@@ -279,6 +279,8 @@ SLC_downloader/
 │   ├── safe_download.py   download a SAFE folder, verify size and MD5, retry
 │   └── orbits.py          parse scene/orbit names, find and download orbit files
 ├── tests/                 unit tests (offline, CDSE is replaced by fakes)
+├── .github/workflows/
+│   └── docker.yml         builds, tests and publishes the image to ghcr.io
 ├── Dockerfile             image built from environment.yml
 ├── environment.yml        conda environment "slc-downloader"
 └── README.md

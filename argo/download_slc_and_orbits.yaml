@@ -21,6 +21,8 @@ spec:
         value: "146"
       - name: instrument_mode
         value: IW
+      - name: platforms
+        value: all                     # or a subset, e.g. "S1A S1C"
       - name: start_date
         value: "2021-01-01"
       - name: end_date
@@ -55,7 +57,7 @@ spec:
             archive:
               none: {}                 # upload the folders as they are, no .tgz
       container:
-        image: ghcr.io/lukas-scharf-plus/slc-downloader:0.2.1
+        image: ghcr.io/lukas-scharf-plus/slc_downloader:sha-3e3f8cc
         # `command` replaces the image ENTRYPOINT; _entrypoint.sh activates
         # the micromamba environment, so it has to stay in front of python.
         command:
@@ -69,6 +71,8 @@ spec:
           - "{{workflow.parameters.relative_orbit}}"
           - --instrument_mode
           - "{{workflow.parameters.instrument_mode}}"
+          - --platforms
+          - "{{workflow.parameters.platforms}}"
           - --start_date
           - "{{workflow.parameters.start_date}}"
           - --end_date
@@ -116,7 +120,7 @@ spec:
             archive:
               none: {}
       container:
-        image: ghcr.io/lukas-scharf-plus/slc-downloader:0.2.1
+        image: ghcr.io/lukas-scharf-plus/slc_downloader:sha-3e3f8cc
         command:
           - /usr/local/bin/_entrypoint.sh
           - python

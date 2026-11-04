@@ -5,9 +5,9 @@ import unittest
 from datetime import date
 from pathlib import Path
 
-from config import (ConfigError, build_orbit_settings, build_slc_settings,
-                    flatten_config, load_yaml_config, merge_cli_overrides,
-                    parse_bbox)
+from config import (PLATFORMS, ConfigError, build_orbit_settings,
+                    build_slc_settings, flatten_config, load_yaml_config,
+                    merge_cli_overrides, parse_bbox, parse_platforms)
 
 VALID_VALUES = {
     "orbit_state": "Ascending",
@@ -110,6 +110,28 @@ class BboxTests(unittest.TestCase):
         for value in ("1 2 3", "a b c d", [16.58, 48.11, 16.18, 48.33], [0, 95, 1, 96]):
             with self.subTest(value=value), self.assertRaises(ConfigError):
                 parse_bbox(value)
+
+
+class PlatformTests(unittest.TestCase):
+    def test_default_is_all_satellites(self):
+        self.assertEqual(build_slc_settings(VALID_VALUES).platforms, PLATFORMS)
+        for value in (None, "", "all", "ALL", []):
+            with self.subTest(value=value):
+                self.assertEqual(parse_platforms(value), PLATFORMS)
+
+    def test_spellings_are_normalised_and_sorted(self):
+        self.assertEqual(parse_platforms("S1A S1C"), ("S1A", "S1C"))
+        self.assertEqual(parse_platforms("c,a"), ("S1A", "S1C"))
+        self.assertEqual(parse_platforms(["sentinel-1c", "S1C"]), ("S1C",))
+
+    def test_value_from_settings(self):
+        settings = build_slc_settings({**VALID_VALUES, "platforms": "C D"})
+        self.assertEqual(settings.platforms, ("S1C", "S1D"))
+
+    def test_unknown_satellite_raises(self):
+        for value in ("S1E", "S2A", "A X"):
+            with self.subTest(value=value), self.assertRaises(ConfigError):
+                parse_platforms(value)
 
 
 class OrbitSettingsTests(unittest.TestCase):

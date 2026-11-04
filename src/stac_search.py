@@ -136,13 +136,14 @@ def find_safe_prefix(item, product_name):
     return None
 
 
-def items_to_scenes(items, polarization):
+def items_to_scenes(items, polarization, platforms=None):
     """
     Convert STAC items to Scene objects.
 
-    Items without the requested polarization are dropped, as are duplicate
-    items (in case a product appears on two pages). Items without an S3
-    location are reported and skipped.
+    Items without the requested polarization or from a satellite that is not
+    in `platforms` are dropped, as are duplicate items (in case a product
+    appears on two pages). Items without an S3 location are reported and
+    skipped.
 
     Parameters
     ----------
@@ -150,6 +151,8 @@ def items_to_scenes(items, polarization):
         STAC items.
     polarization : str
         Required polarization, e.g. "VV".
+    platforms : tuple of str, optional
+        Satellites to keep, e.g. ("S1A", "S1C"). None keeps all.
 
     Returns
     -------
@@ -157,6 +160,7 @@ def items_to_scenes(items, polarization):
         Sorted by acquisition time.
     """
     scenes = {}
+    skipped_by_platform = {}
 
     for item in items:
         properties = item.get("properties", {})
@@ -165,6 +169,12 @@ def items_to_scenes(items, polarization):
 
         product_name = item["id"] if item["id"].endswith(".SAFE") else f"{item['id']}.SAFE"
         if product_name in scenes:
+            continue
+
+        # The product name starts with the satellite, e.g. "S1C_IW_SLC__...".
+        platform = product_name[:3]
+        if platforms is not None and platform not in platforms:
+            skipped_by_platform[platform] = skipped_by_platform.get(platform, 0) + 1
             continue
 
         location = find_safe_prefix(item, product_name)
@@ -179,6 +189,9 @@ def items_to_scenes(items, polarization):
             bucket=bucket,
             prefix=prefix,
         )
+
+    for platform, count in sorted(skipped_by_platform.items()):
+        logger.info("Skipped %d %s products (not in platforms)", count, platform)
 
     return sorted(scenes.values(), key=lambda scene: scene.acquisition_time)
 
@@ -197,4 +210,4 @@ def search_scenes(session, settings):
     list of Scene
     """
     items = fetch_all_items(session, build_search_payload(settings))
-    return items_to_scenes(items, settings.polarization)
+    return items_to_scenes(items, settings.polarization, settings.platforms)

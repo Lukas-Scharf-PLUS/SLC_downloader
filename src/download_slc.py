@@ -59,6 +59,8 @@ def parse_arguments(argv=None):
     search.add_argument("--relative_orbit", type=int, help="relative orbit number (1-175)")
     search.add_argument("--instrument_mode", help="IW, EW, SM or WV (usually IW)")
     search.add_argument("--polarization", help="required polarization, default VV")
+    search.add_argument("--platforms",
+                        help='satellites to download, e.g. "S1A S1C" or "A,C" (default: all)')
     search.add_argument("--start_date", help="first day, e.g. 2021-01-01")
     search.add_argument("--end_date", help="last day (inclusive), e.g. 2021-01-31")
     search.add_argument("--bbox", help='area as "WEST SOUTH EAST NORTH" in degrees')
@@ -94,7 +96,8 @@ def log_settings(settings, output_dir):
     logger.info("relative_orbit   : %s", settings.relative_orbit)
     logger.info("instrument_mode  : %s", settings.instrument_mode)
     logger.info("polarization     : %s", settings.polarization)
-    logger.info("start_date       : %s", settings.start_date)
+    logger.info("platforms        : %s", " ".join(settings.platforms))
+    logger.info("start_date      : %s", settings.start_date)
     logger.info("end_date         : %s (inclusive)", settings.end_date)
     logger.info("bbox             : %s", list(settings.bbox))
     logger.info("output folder    : %s", output_dir)

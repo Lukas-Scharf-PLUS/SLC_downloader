@@ -110,12 +110,23 @@ Only list what would be downloaded:
 python src/download_slc.py --config configs/vienna.yaml --dry_run
 ```
 
+Only some satellites, e.g. S1A and S1C (default: all available Sentinel-1 satellites):
+
+```bash
+python src/download_slc.py --config configs/vienna.yaml --platforms "S1A S1C"
+```
+
+This is useful for InSAR stacks that should only contain one satellite, for example
+when interferograms between two satellites show phase jumps at burst edges
+(timing differences between the satellites that are not corrected without ESD).
+
 | Option | Config key | Default | Meaning |
 | --- | --- | --- | --- |
 | `--orbit_state` | `orbit_state` | required | `ascending` or `descending` |
 | `--relative_orbit` | `relative_orbit` | required | track number, 1–175 |
 | `--instrument_mode` | `instrument_mode` | required | `IW`, `EW`, `SM` or `WV` |
 | `--polarization` | `polarization` | `VV` | products must contain this polarization |
+| `--platforms` | `platforms` | all | satellites to download: any of `S1A S1B S1C S1D` (also `A`, `c`, `sentinel-1a`; separated by spaces or commas), or `all` |
 | `--start_date` | `start_date` | required | first day, `YYYY-MM-DD` |
 | `--end_date` | `end_date` | required | last day, **inclusive** |
 | `--bbox` | `bbox` | required | `"WEST SOUTH EAST NORTH"` in degrees |
@@ -209,6 +220,9 @@ so the orbit step finds the SAFE folders of the first step. Each step uploads it
 ```bash
 argo submit argo/download_slc_and_orbits.yaml \
     -p start_date=2021-01-01 -p end_date=2021-01-31
+
+# only some satellites (parameter "platforms", default "all")
+argo submit argo/download_slc_and_orbits.yaml -p platforms="S1A"
 ```
 
 Things the workflow relies on:

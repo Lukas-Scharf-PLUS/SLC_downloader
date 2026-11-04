@@ -89,6 +89,19 @@ class SceneConversionTests(unittest.TestCase):
         self.assertEqual([s.product_name for s in scenes], [f"{PRODUCT_ID}.SAFE", f"{later['id']}.SAFE"])
         self.assertEqual(scenes[0].prefix, SAFE_PREFIX)
 
+    def test_platform_filter(self):
+        s1c = make_item("S1C_IW_SLC__1SDV_20250101T000000_20250101T000027_000001_000001_AAAA",
+                        when="2025-01-01T00:00:00Z")
+        items = [make_item(), s1c]  # make_item() is an S1A product
+
+        only_c = items_to_scenes(items, "VV", ("S1C",))
+        both = items_to_scenes(items, "VV", ("S1A", "S1C"))
+        no_filter = items_to_scenes(items, "VV")
+
+        self.assertEqual([s.product_name[:3] for s in only_c], ["S1C"])
+        self.assertEqual([s.product_name[:3] for s in both], ["S1A", "S1C"])
+        self.assertEqual(len(no_filter), 2)
+
 
 class PayloadTests(unittest.TestCase):
     def test_end_date_is_inclusive(self):

@@ -7,6 +7,7 @@ orbit_state: ascending      # ascending | descending
 relative_orbit: 73          # 1-175
 instrument_mode: IW         # IW | EW | SM | WV
 polarization: VV            # products must contain this polarization
+platforms: all              # all | list of S1A, S1B, S1C, S1D, e.g. [S1A, S1C]
 
 start_date: "2020-06-01"
 end_date: "2020-06-30"      # inclusive

@@ -17,6 +17,9 @@ import yaml
 ORBIT_STATES = ("ascending", "descending")
 INSTRUMENT_MODES = ("IW", "EW", "SM", "WV")
 POLARIZATIONS = ("VV", "VH", "HH", "HV")
+# Sentinel-1 satellites, as they appear at the start of a product name
+# (e.g. "S1C_IW_SLC__..."). Default: all of them.
+PLATFORMS = ("S1A", "S1B", "S1C", "S1D")
 MAX_RELATIVE_ORBIT = 175  # Sentinel-1 has 175 relative orbits per 12-day cycle
 
 DEFAULT_POLARIZATION = "VV"
@@ -45,6 +48,7 @@ class SlcSettings:
     relative_orbit: int
     instrument_mode: str
     polarization: str
+    platforms: tuple  # satellites to download, e.g. ("S1A", "S1C")
     start_date: date
     end_date: date  # inclusive
     bbox: tuple  # (west, south, east, north) in degrees
@@ -217,6 +221,7 @@ def build_slc_settings(values):
         relative_orbit=relative_orbit,
         instrument_mode=instrument_mode,
         polarization=polarization,
+        platforms=parse_platforms(values.get("platforms")),
         start_date=start_date,
         end_date=end_date,
         bbox=parse_bbox(values["bbox"]),
@@ -295,6 +300,54 @@ def parse_bbox(value):
         )
 
     return bbox
+
+
+def parse_platforms(value):
+    """
+    Parse the list of Sentinel-1 satellites to download.
+
+    Accepts a list or a string separated by spaces and/or commas. Each entry
+    may be written as "S1A", "A", "s1a" or "sentinel-1a". An empty value or
+    "all" selects every satellite.
+
+    Examples: None -> all, "S1A S1C" -> ("S1A", "S1C"), ["c", "a"] -> ("S1A", "S1C").
+
+    Parameters
+    ----------
+    value : str or list or None
+        Satellites as given in the config or on the command line.
+
+    Returns
+    -------
+    tuple of str
+        Selected satellites in the order of `PLATFORMS`, without duplicates.
+
+    Raises
+    ------
+    ConfigError
+        If an entry is not a known Sentinel-1 satellite.
+    """
+    if value is None:
+        return PLATFORMS
+
+    entries = value.replace(",", " ").split() if isinstance(value, str) else list(value)
+    names = [str(entry).strip().upper() for entry in entries]
+    if not names or names == ["ALL"]:
+        return PLATFORMS
+
+    selected = set()
+    for name in names:
+        # "SENTINEL-1A" -> "A", then "A" -> "S1A"
+        short_name = name.replace("SENTINEL-1", "")
+        platform = f"S1{short_name}" if len(short_name) == 1 else short_name
+        if platform not in PLATFORMS:
+            raise ConfigError(
+                f"platforms: unknown satellite '{name}'. Use one or more of {PLATFORMS} "
+                "(also written as A, B, C, D), or 'all'."
+            )
+        selected.add(platform)
+
+    return tuple(platform for platform in PLATFORMS if platform in selected)
 
 
 def _require(values, keys):
